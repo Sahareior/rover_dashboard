@@ -28,7 +28,7 @@ const EnvironmentalSensors = ({ temp, pressure, sonarOn, dangerMode, leakDetecte
                         }`}
                     >
                         <div className="flex items-center justify-between mb-1">
-                            <span className="text-[9px] text-[#8a9aaf] tracking-[0.1em] font-bold uppercase">
+                            <span className="text-[9.5px] text-[#c7b2b2] tracking-[0.1em] font-bold uppercase">
                                 {sensor.label}
                             </span>
                             <span className="text-[10px]">{sensor.icon}</span>

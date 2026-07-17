@@ -79,15 +79,15 @@ const RoverDashboard = () => {
                     const osc = audioCtxRef.current.createOscillator();
                     const gain = audioCtxRef.current.createGain();
                     osc.type = 'square';
-                    
+
                     // Two-tone siren effect
                     osc.frequency.setValueAtTime(880, audioCtxRef.current.currentTime);
                     osc.frequency.setValueAtTime(1100, audioCtxRef.current.currentTime + 0.15);
-                    
+
                     gain.gain.setValueAtTime(0, audioCtxRef.current.currentTime);
                     gain.gain.linearRampToValueAtTime(0.08, audioCtxRef.current.currentTime + 0.05);
                     gain.gain.exponentialRampToValueAtTime(0.001, audioCtxRef.current.currentTime + 0.3);
-                    
+
                     osc.connect(gain).connect(audioCtxRef.current.destination);
                     osc.start();
                     osc.stop(audioCtxRef.current.currentTime + 0.3);
@@ -265,7 +265,7 @@ const RoverDashboard = () => {
                         />
                     </div>
                 </div>
-                <div className={`w-full xl:w-[400px] shrink-0 overflow-y-visible xl:overflow-y-auto ${dangerMode ? 'danger-scrollbar' : 'custom-scrollbar'} bg-[#060b12]/90 backdrop-blur-md rounded-md p-4 flex flex-col gap-5 relative z-10 transition-all duration-500 ${dangerMode ? 'border border-red-500/30 glow-red' : 'border border-[#00e5ff]/15 glow-cyan'}`}>
+                <div className={`w-full xl:w-[400px] shrink-0 space-y-8 overflow-y-visible xl:overflow-y-auto ${dangerMode ? 'danger-scrollbar' : 'custom-scrollbar'} bg-[#060b12]/90 backdrop-blur-md rounded-md p-4 flex flex-col gap-5 relative z-10 transition-all duration-500 ${dangerMode ? 'border border-red-500/30 glow-red' : 'border border-[#00e5ff]/15 glow-cyan'}`}>
                     <ThrusterMonitor thrusterTelemetry={thrusterData} dangerMode={dangerMode} />
                     <EnvironmentalSensors temp={temp} pressure={pressure} sonarOn={sonarOn} dangerMode={dangerMode} leakDetected={leakDetected} tempFault={tempFault} pressureFault={pressureFault} />
                     <DepthProfile dangerMode={dangerMode} depth={depth} depthFault={depthFault} />

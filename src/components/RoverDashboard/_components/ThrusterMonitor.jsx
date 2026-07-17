@@ -49,7 +49,7 @@ const ThrusterMonitor = ({ thrusterTelemetry, dangerMode }) => {
                     );
                 })}
             </div>
-            <div className="mt-2.5 flex items-center justify-between text-[8px] text-[#475569] tracking-wider">
+            <div className="mt-2.5 flex items-center justify-between text-[9px] text-[#e4a32a] tracking-wider">
                 <span>TOTAL OUTPUT</span>
                 <span className={`font-bold tabular-nums ${dangerMode ? 'text-red-400/60' : 'text-[#00e5ff]/60'}`}>
                     {Math.round(thrusterTelemetry.reduce((sum, t) => sum + t.value, 0) / thrusterTelemetry.length)}% AVG

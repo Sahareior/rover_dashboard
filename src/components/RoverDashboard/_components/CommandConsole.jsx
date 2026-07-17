@@ -23,7 +23,7 @@ const CommandConsole = ({
       <div className="flex flex-col gap-2">
         <div className="flex justify-between items-center">
           <span className="text-xs font-bold text-[#e2e8f0] tracking-wide">Target Depth</span>
-          <span className="text-[9px] text-[#475569] tracking-wider font-semibold">STANDBY</span>
+          <span className="text-[9px] text-[#ffffff] tracking-wider font-semibold">STANDBY</span>
         </div>
         <div className="flex items-center gap-3">
           <input
@@ -53,8 +53,8 @@ const CommandConsole = ({
             SEND
           </button>
         </div>
-        <div className="text-[9px] text-[#475569] mt-0.5">
-          target: <span className="text-[#94a3b8]">{targetDepth}m</span> · current: <span className="text-[#94a3b8]">{depth}m</span>
+        <div className="text-[10px] text-[#ffffff] mt-0.5">
+          target: <span className="text-[#ffffff]">{targetDepth}m</span> · current: <span className="text-[#ffffff]">{depth}m</span>
         </div>
       </div>
       <div className="border-t border-[#1e293b]/20" />
