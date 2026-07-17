@@ -5,10 +5,8 @@ import ThrusterMonitor from './_components/ThrusterMonitor';
 import EnvironmentalSensors from './_components/EnvironmentalSensors';
 import DepthProfile from './_components/DepthProfile';
 import AlarmBanner from './_components/AlarmBanner';
-import ConnectionIndicator from './_components/ConnectionIndicator';
-
+import StatusBar from './_components/StatusBar';
 const RoverDashboard = () => {
-    // Rover telemetry metrics
     const [depth, setDepth] = useState(4821.5);
     const [targetDepth, setTargetDepth] = useState(15);
     const [heading, setHeading] = useState(184.2);
@@ -19,25 +17,21 @@ const RoverDashboard = () => {
     const [temp, setTemp] = useState(2.4);
     const [pressure, setPressure] = useState(482);
     const [sonarOn, setSonarOn] = useState(false);
-
-    // Pilot controls
     const [floodlightsOn, setFloodlightsOn] = useState(true);
-
-    // Danger mode state
     const [dangerMode, setDangerMode] = useState(false);
     const [leakDetected, setLeakDetected] = useState(false);
     const [activeAlarms, setActiveAlarms] = useState([]);
-    const alarmAudioRef = useRef(null);
-
-    // Thruster data stored in state (not recalculated on every render)
+    const audioCtxRef = useRef(null);
+    const beepIntervalRef = useRef(null);
+    const [missionTime, setMissionTime] = useState(0);
+    const [latency, setLatency] = useState(12);
+    const [bandwidth, setBandwidth] = useState(4.2);
     const [thrusterData, setThrusterData] = useState([
         { label: 'FWD PORT', value: 42 },
         { label: 'FWD STBD', value: 42 },
         { label: 'VERT PORT', value: 15 },
         { label: 'VERT STBD', value: 15 },
     ]);
-
-    // Thresholds for out-of-range detection
     const THRESHOLDS = {
         pitchMax: 15,
         rollMax: 15,
@@ -46,16 +40,23 @@ const RoverDashboard = () => {
         pressureHigh: 500,
         tempHigh: 5,
     };
-
-    // Pre-computed fault booleans for children
     const pitchFault = dangerMode && (pitch > THRESHOLDS.pitchMax || pitch < -THRESHOLDS.pitchMax);
     const rollFault = dangerMode && (roll > THRESHOLDS.rollMax || roll < -THRESHOLDS.rollMax);
     const batteryFault = dangerMode && battery <= THRESHOLDS.batteryLow;
     const depthFault = dangerMode && depth >= THRESHOLDS.depthMax;
     const pressureFault = dangerMode && pressure >= THRESHOLDS.pressureHigh;
     const tempFault = dangerMode && temp >= THRESHOLDS.tempHigh;
-
-    // Evaluate fault conditions
+    useEffect(() => {
+        const timer = setInterval(() => setMissionTime(prev => prev + 1), 1000);
+        return () => clearInterval(timer);
+    }, []);
+    useEffect(() => {
+        const conn = setInterval(() => {
+            setLatency(prev => Math.max(5, Math.min(50, prev + (Math.random() - 0.5) * 4)));
+            setBandwidth(prev => Math.max(1, Math.min(10, prev + (Math.random() - 0.5) * 1.5)));
+        }, 3000);
+        return () => clearInterval(conn);
+    }, []);
     const evaluateFaults = useCallback(() => {
         const faults = [];
         if (dangerMode) {
@@ -69,42 +70,42 @@ const RoverDashboard = () => {
         }
         setActiveAlarms(faults);
     }, [dangerMode, pitchFault, rollFault, batteryFault, depthFault, pressureFault, tempFault, leakDetected, pitch, roll, battery, depth, pressure, temp]);
-
+    useEffect(() => { evaluateFaults(); }, [evaluateFaults]);
     useEffect(() => {
-        evaluateFaults();
-    }, [evaluateFaults]);
-
-    // Play alarm sound in danger mode when emergency
-    useEffect(() => {
-        if (dangerMode && leakDetected) {
-            if (!alarmAudioRef.current) {
-                const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.type = 'square';
-                osc.frequency.value = 880;
-                gain.gain.value = 0.08;
-                osc.connect(gain).connect(ctx.destination);
-                osc.start();
-                alarmAudioRef.current = { ctx, osc };
+        if (activeAlarms.length > 0 && dangerMode && audioCtxRef.current) {
+            if (!beepIntervalRef.current) {
+                // Play a loud repeating two-tone beep for alarms
+                beepIntervalRef.current = setInterval(() => {
+                    const osc = audioCtxRef.current.createOscillator();
+                    const gain = audioCtxRef.current.createGain();
+                    osc.type = 'square';
+                    
+                    // Two-tone siren effect
+                    osc.frequency.setValueAtTime(880, audioCtxRef.current.currentTime);
+                    osc.frequency.setValueAtTime(1100, audioCtxRef.current.currentTime + 0.15);
+                    
+                    gain.gain.setValueAtTime(0, audioCtxRef.current.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.08, audioCtxRef.current.currentTime + 0.05);
+                    gain.gain.exponentialRampToValueAtTime(0.001, audioCtxRef.current.currentTime + 0.3);
+                    
+                    osc.connect(gain).connect(audioCtxRef.current.destination);
+                    osc.start();
+                    osc.stop(audioCtxRef.current.currentTime + 0.3);
+                }, 600);
             }
         } else {
-            if (alarmAudioRef.current) {
-                alarmAudioRef.current.osc.stop();
-                alarmAudioRef.current.ctx.close();
-                alarmAudioRef.current = null;
+            if (beepIntervalRef.current) {
+                clearInterval(beepIntervalRef.current);
+                beepIntervalRef.current = null;
             }
         }
         return () => {
-            if (alarmAudioRef.current) {
-                alarmAudioRef.current.osc.stop();
-                alarmAudioRef.current.ctx.close();
-                alarmAudioRef.current = null;
+            if (beepIntervalRef.current) {
+                clearInterval(beepIntervalRef.current);
+                beepIntervalRef.current = null;
             }
         };
-    }, [dangerMode, leakDetected]);
-
-    // Simulate leak 3 seconds after entering danger mode
+    }, [activeAlarms.length, dangerMode]);
     useEffect(() => {
         let leakTimer = null;
         if (dangerMode) {
@@ -117,8 +118,6 @@ const RoverDashboard = () => {
         }
         return () => { if (leakTimer) clearTimeout(leakTimer); };
     }, [dangerMode]);
-
-    // Push telemetry into out-of-range when danger mode is on
     useEffect(() => {
         if (!dangerMode) return;
         const faultPush = setInterval(() => {
@@ -128,7 +127,7 @@ const RoverDashboard = () => {
                 return nextVal > 30 ? 30 : nextVal < -30 ? -30 : nextVal;
             });
             setRoll(prev => {
-                const spike = (Math.random() > 0.7) ? (Math.random() * 10 + 16) * (Math.random() > 0.5 ? 1 : -1) : 0;
+                const spike = (Math.random() > 0.7) ? (Math.random() * 10 + 16) * (Math.random() - 0.5) : 0;
                 const nextVal = +(prev + spike + (Math.random() - 0.5) * 2).toFixed(2);
                 return nextVal > 30 ? 30 : nextVal < -30 ? -30 : nextVal;
             });
@@ -136,8 +135,6 @@ const RoverDashboard = () => {
         }, 2000);
         return () => clearInterval(faultPush);
     }, [dangerMode]);
-
-    // Simulate thruster degradation in danger mode
     useEffect(() => {
         if (!dangerMode) {
             setThrusterData([
@@ -156,14 +153,24 @@ const RoverDashboard = () => {
         }, 2500);
         return () => clearInterval(thrusterDeg);
     }, [dangerMode]);
-
     const [logs, setLogs] = useState([
         'Initializing descent sequence...',
         'Thruster array calibrated.',
         'Systems online. Awaiting pilot input.'
     ]);
-
+    const appendTerminalLog = React.useCallback((msg) => {
+        const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        setLogs(prev => [...prev.slice(-4), `[${timestamp}] ${msg}`]);
+    }, []);
     const toggleDangerMode = () => {
+        // Initialize AudioContext on user gesture to bypass browser autoplay restrictions
+        if (!audioCtxRef.current) {
+            audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtxRef.current.state === 'suspended') {
+            audioCtxRef.current.resume();
+        }
+
         if (!dangerMode) {
             setDangerMode(true);
             appendTerminalLog('⚠ DANGER MODE ACTIVATED — FAULT SIMULATION ENGAGED');
@@ -173,8 +180,6 @@ const RoverDashboard = () => {
             appendTerminalLog('DANGER MODE DEACTIVATED — ALL SYSTEMS NOMINAL');
         }
     };
-
-    // Simulate battery drain faster in danger mode
     useEffect(() => {
         if (!dangerMode) return;
         const drain = setInterval(() => {
@@ -182,8 +187,6 @@ const RoverDashboard = () => {
         }, 2000);
         return () => clearInterval(drain);
     }, [dangerMode]);
-
-    // Handle telemetry updates simulating live data flow from the ROV
     useEffect(() => {
         const handleTelemetryFeed = setInterval(() => {
             setDepth(prev => +(prev + (Math.random() - 0.48) * 0.4).toFixed(1));
@@ -201,78 +204,74 @@ const RoverDashboard = () => {
             setYaw(prev => +(prev + (Math.random() - 0.5) * 0.05).toFixed(2));
             setTemp(prev => +(prev + (Math.random() - 0.5) * 0.02).toFixed(2));
             setPressure(prev => +(prev + (Math.random() - 0.5) * 0.1).toFixed(1));
-
-            if (Math.random() > 0.95) {
-                setBattery(prev => Math.max(0, prev - 1));
-            }
+            if (Math.random() > 0.95) setBattery(prev => Math.max(0, prev - 1));
         }, 1000);
-
         return () => clearInterval(handleTelemetryFeed);
     }, []);
-
-    const appendTerminalLog = (msg) => {
-        const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        setLogs(prev => [...prev.slice(-4), `[${timestamp}] ${msg}`]);
-    };
-
     return (
-        <div className={`flex h-full w-full text-[#e2e8f0] p-4 gap-4 font-mono overflow-hidden cyber-grid relative transition-colors duration-500 ${dangerMode ? 'bg-[#0a0000]' : 'bg-[#030712]'}`}>
-            {/* Scanline overlay for cyber HUD feel */}
-            <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-5">
-                <div className={`w-full h-[5px] animate-scanline ${dangerMode ? 'bg-red-500' : 'bg-[#00e5ff]'}`}></div>
+        <div className={`flex flex-col h-full w-full text-[#e2e8f0] font-mono overflow-hidden relative transition-colors duration-500 ${dangerMode ? 'bg-[#0a0000]' : 'bg-[#030712]'}`}>
+            <div className="absolute inset-0 pointer-events-none">
+                <div className={`absolute inset-0 transition-opacity duration-500 ${dangerMode ? 'opacity-[0.03]' : 'opacity-[0.02]'}`}>
+                    <div className={`w-full h-full ${dangerMode ? 'bg-red-500' : 'bg-[#00e5ff]'}`} style={{
+                        backgroundImage: `linear-gradient(${dangerMode ? 'rgba(239,68,68,0.03)' : 'rgba(0,229,255,0.03)'} 1px, transparent 1px), linear-gradient(90deg, ${dangerMode ? 'rgba(239,68,68,0.03)' : 'rgba(0,229,255,0.03)'} 1px, transparent 1px)`,
+                        backgroundSize: '40px 40px',
+                    }} />
+                </div>
             </div>
-
-            {/* Danger mode red pulse overlay */}
+            <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-[0.04] z-30">
+                <div className={`w-full h-[2px] animate-scanline ${dangerMode ? 'bg-red-500' : 'bg-[#00e5ff]'}`}></div>
+            </div>
             {dangerMode && leakDetected && (
                 <div className="absolute inset-0 pointer-events-none z-50 animate-danger-pulse border-2 border-red-500/60 rounded-lg"></div>
             )}
-
-            {/* Alarm Banner */}
+            <StatusBar
+                dangerMode={dangerMode}
+                leakDetected={leakDetected}
+                activeAlarms={activeAlarms}
+                missionTime={missionTime}
+                latency={latency}
+                bandwidth={bandwidth}
+                battery={battery}
+                depth={depth}
+            />
             {dangerMode && <AlarmBanner alarms={activeAlarms} />}
-
-            {/* Main Center Video & Console Feed */}
-            <div className="flex flex-col flex-1 min-w-0 gap-4 relative z-10">
-                <CameraFeed
-                    depth={depth}
-                    heading={heading}
-                    pitch={pitch}
-                    roll={roll}
-                    yaw={yaw}
-                    battery={battery}
-                    dangerMode={dangerMode}
-                    leakDetected={leakDetected}
-                    pitchFault={pitchFault}
-                    rollFault={rollFault}
-                    batteryFault={batteryFault}
-                    depthFault={depthFault}
-                />
-
-                
-
-              <div className='h-52 overflow-y-auto'>
-                  <CommandConsole
-                    depth={depth}
-                    targetDepth={targetDepth}
-                    setTargetDepth={setTargetDepth}
-                    floodlightsOn={floodlightsOn}
-                    setFloodlightsOn={setFloodlightsOn}
-                    appendTerminalLog={appendTerminalLog}
-                    dangerMode={dangerMode}
-                    toggleDangerMode={toggleDangerMode}
-                    activeAlarms={activeAlarms}
-                />
-              </div>
-            </div>
-
-            {/* Right Side Sidebar containing Telemetry Panels */}
-            <div className={`w-90 overflow-y-auto hide-scrollbar bg-[#030712]/90 backdrop-blur-md rounded-md p-4 flex flex-col gap-6 relative z-10 transition-all duration-500 ${dangerMode ? 'border border-red-500/40 glow-red' : 'border border-[#00e5ff]/20 glow-cyan'}`}>
-                <ConnectionIndicator dangerMode={dangerMode} />
-                <ThrusterMonitor thrusterTelemetry={thrusterData} dangerMode={dangerMode} />
-                <EnvironmentalSensors temp={temp} pressure={pressure} sonarOn={sonarOn} dangerMode={dangerMode} leakDetected={leakDetected} tempFault={tempFault} pressureFault={pressureFault} />
-                <DepthProfile dangerMode={dangerMode} depth={depth} depthFault={depthFault} />
+            <div className="flex flex-col xl:flex-row flex-1 min-h-0 p-3 gap-3 relative z-10 overflow-y-auto xl:overflow-hidden hide-scrollbar">
+                <div className="flex flex-col flex-1 min-w-0 gap-3">
+                    <CameraFeed
+                        depth={depth}
+                        heading={heading}
+                        pitch={pitch}
+                        roll={roll}
+                        yaw={yaw}
+                        battery={battery}
+                        dangerMode={dangerMode}
+                        leakDetected={leakDetected}
+                        pitchFault={pitchFault}
+                        rollFault={rollFault}
+                        batteryFault={batteryFault}
+                        depthFault={depthFault}
+                    />
+                    <div className={`h-48 overflow-y-auto ${dangerMode ? 'danger-scrollbar' : 'custom-scrollbar'}`}>
+                        <CommandConsole
+                            depth={depth}
+                            targetDepth={targetDepth}
+                            setTargetDepth={setTargetDepth}
+                            floodlightsOn={floodlightsOn}
+                            setFloodlightsOn={setFloodlightsOn}
+                            appendTerminalLog={appendTerminalLog}
+                            dangerMode={dangerMode}
+                            toggleDangerMode={toggleDangerMode}
+                            activeAlarms={activeAlarms}
+                        />
+                    </div>
+                </div>
+                <div className={`w-full xl:w-[400px] shrink-0 overflow-y-visible xl:overflow-y-auto ${dangerMode ? 'danger-scrollbar' : 'custom-scrollbar'} bg-[#060b12]/90 backdrop-blur-md rounded-md p-4 flex flex-col gap-5 relative z-10 transition-all duration-500 ${dangerMode ? 'border border-red-500/30 glow-red' : 'border border-[#00e5ff]/15 glow-cyan'}`}>
+                    <ThrusterMonitor thrusterTelemetry={thrusterData} dangerMode={dangerMode} />
+                    <EnvironmentalSensors temp={temp} pressure={pressure} sonarOn={sonarOn} dangerMode={dangerMode} leakDetected={leakDetected} tempFault={tempFault} pressureFault={pressureFault} />
+                    <DepthProfile dangerMode={dangerMode} depth={depth} depthFault={depthFault} />
+                </div>
             </div>
         </div>
     );
 };
-
 export default RoverDashboard;
